@@ -3,21 +3,25 @@
   <head>
     <title>INFO 4310 - Sept-21</title>
     <meta charset="utf-8" />
-    <!-- <script src="https://d3js.org/d3.v6.min.js"></script>
-    <script src="https://d3js.org/topojson.v2.min.js"></script> -->
     <script src="https://d3js.org/d3.v5.min.js"></script>
-
-  <!--
-    <link rel="stylesheet" type="text/css" href="../css/normalize.css">
-    <link rel="stylesheet" type="text/css" href="../css/skeleton.css">
-    <link rel="stylesheet" type="text/css" href="../css/custom-style.css">
-
-    <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.14.2/styles/default.min.css">
-    <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.14.2/highlight.min.js"></script>
-    <script src="https://d3js.org/d3.v6.min.js"></script>
-    <script src="https://d3js.org/topojson.v2.min.js"></script>
-     -->
      <style>
+
+     .tooltip {
+       position: fixed;
+       text-align: left;
+       width: 500px;
+       height: 150px;
+       padding: 3px;
+       font-size: 20px;
+       pointer-events: none;
+       color: white;
+       background-color: #3f667a;
+       border-radius: 10px;
+     }
+
+     .tooltip p {
+       padding: 5px 5px 5px 5px;
+     }
 
      #ScatterVis {
        float:left;
@@ -26,14 +30,10 @@
        margin-left: 10px;
       }
 
-     #PopUpInfo {
-      height:400px;
-      width:400px;
-      padding: 20px 30px 20px 20px;
-      }
-      #PopUpInfo h5 {
-      margin:0;
-      padding:0;
+     #PopUp {
+       margin-bottom: 20px;
+       margin-right: 20px;
+       margin-left: 10px;
       }
      </style>
 
@@ -42,9 +42,11 @@
     <div class="container larger">
       <h1>INFO 4310 HW 1</h1>
       <h3>Kristy Liu (kl768)</h3>
-      <div id="PopUpInfo"></div>
+      <svg id="PopUp" width="1000" height="200" style="float:left;">
+        <rect id="PopUpInfo" height="200" width="1000" style="fill:none" />
+      </svg>
       <svg id="ScatterVis" width="2000" height="700" style="float:left;">
-        <rect height="700" width="2000" style="fill:lightgrey;stroke-width:3;stroke:rgb(0,0,0)" />
+        <rect height="700" width="2000" style="fill:#dce8ee;stroke-width:3;stroke:rgb(0,0,0)" />
       </svg>
 
       <script>
@@ -52,11 +54,11 @@
         const width = scatter.attr("width");
         const height = scatter.attr("height");
         const margin = {top: 15, right: 15, bottom: 70, left: 180};
-        const chartWidth = width - margin.left - margin.right;
-        const chartHeight = height - margin.top - margin.bottom;
+        const scatterWidth = width - margin.left - margin.right;
+        const scatterHeight = height - margin.top - margin.bottom;
 
-        let annotations = scatter.append("g").attr("id","annotations");
-        let chartArea = scatter.append("g").attr("id","points")
+        let graphsettings = scatter.append("g").attr("id","graphsettings");
+        let scatterArea = scatter.append("g").attr("id","points")
                         .attr("transform","translate("+margin.left+","+margin.top+")");
         const loadScatter = async function() {
           let data = await d3.csv("../TreeDataFiltered.csv", d3.autoType )
@@ -67,113 +69,122 @@
             d['latin_name'] = String(strings[0]);
             d['common_name'] = String(strings[1]);
             d['DBH'] = parseInt(d['DBH']);
-            // qCaretaker.push(d['qCaretaker']);
+            qCaretaker.push(d['qCaretaker']);
             qLegalStatus.push(d['qLegalStatus']);
           });
+          let qCaretaker_occurences_dict = {}
+          for (let i=0; i < qCaretaker.length; i++) {
+            qCaretaker_occurences_dict[qCaretaker[i]] = (qCaretaker_occurences_dict[qCaretaker[i]] || 0) +1 ;
+          }
+          let qCaretaker_occurences_array = []
+          for (let i in qCaretaker_occurences_dict) {
+            qCaretaker_occurences_array.push([i, qCaretaker_occurences_dict[i] ])
+          }
+          qCaretaker_occurences_array.sort(function compare(c1, c2) {
+            return c1[1] - c2[1]
+          })
+          qCaretaker_sorted = []
+          for (let i in qCaretaker_occurences_array) {
+            qCaretaker_sorted.push(qCaretaker_occurences_array[i][0])
+          }
+          const caretakerScale = d3.scaleBand()
+          .domain(qCaretaker_sorted)
+          .range([scatterHeight, 0]);
+
+          const dbhExtent = d3.extent(data, d => d['DBH']);
+          const dbhScale = d3.scaleLog().domain(dbhExtent).range([0, scatterWidth]);
+
           let qLegalStatus_unique = new Set(qLegalStatus)
           let qLegalStatus_unique_length = new Set(qLegalStatus).size
-          // const caretakerExtent = [0,parseInt(qCaretaker_unique_length)]
-          // const caretakerScale = d3.scaleLinear().domain(caretakerExtent).range([0, chartWidth]);
-          const caretakerScale = d3.scaleBand()
-          .domain(data.map(function(d) {
-            return d['qCaretaker'];
-          })).range([chartHeight, 0]);
-          const dbhExtent = d3.extent(data, d => d['DBH']);
-          const dbhScale = d3.scaleLog().domain(dbhExtent).range([0, chartWidth]);
-          // const legalExtent = [0,parseInt(qLegalStatus_unique_length)]
           const legalstatusScale = d3.scaleOrdinal()
           .domain(qLegalStatus_unique)
           .range(['#1b70fc','#a946aa','#24c9d7','#ff7b91','#8c46fc','#f3db1d','#e8ac48','#22e67a','#9a634a','#698ffc']);
+
           let leftAxis = d3.axisLeft(caretakerScale)
           let leftGridlines = d3.axisLeft(caretakerScale)
-                                .tickSize(-chartWidth)
+                                .tickSize(-scatterWidth)
                                 .tickFormat("")
           let bottomAxis = d3.axisBottom(dbhScale).tickFormat(d3.format("d"))
           let bottomGridlines = d3.axisBottom(dbhScale)
-                                .tickSize(-chartHeight)
+                                .tickSize(-scatterHeight)
                                 .tickFormat("")
-          annotations.append("g")
+          graphsettings.append("g")
             .attr("class", "y axis")
             .attr("transform","translate("+(margin.left-10)+","+margin.top+")")
             .call(leftAxis)
-          annotations.append("g")
+          graphsettings.append("g")
             .attr("class", "y gridlines")
             .attr("transform","translate("+(margin.left-10)+","+margin.top+")")
             .call(leftGridlines);
-          annotations.append("g")
+          graphsettings.append("text")
+            .attr("class", "y label")
+            .attr("x", 100)
+            .attr("y", scatterHeight/2 + 60)
+            .style("text-anchor", "middle")
+            .text("Owner of Tree")
+            .attr("transform", "rotate(-90 40 375)");
+          graphsettings.append("g")
             .attr("class", "x axis")
-            .attr("transform","translate("+(margin.left-10)+","+(chartHeight+margin.top)+")")
+            .attr("transform","translate("+(margin.left-10)+","+(scatterHeight+margin.top)+")")
             .call(bottomAxis)
             .selectAll("text")
             .attr("y", 15)
             .attr("x", 0)
-            .style("text-anchor", "middle");
-          annotations.append("g")
+            .style("text-anchor", "middle")
+          graphsettings.append("g")
             .attr("class", "x gridlines")
-            .attr("transform","translate("+(margin.left-10)+","+(chartHeight+margin.top)+")")
+            .attr("transform","translate("+(margin.left-10)+","+(scatterHeight+margin.top)+")")
             .call(bottomGridlines);
+          graphsettings.append("text")
+            .attr("class", "x label")
+            .attr("x", scatterWidth/2 + 100)
+            .attr("y", scatterHeight + 70)
+            .style("text-anchor", "middle")
+            .text("Diameter at Breast Height - DBH (Feet)");
 
-          let circles = chartArea.selectAll("circle.point").data(data)
-                                  .join(enter => enter.append("circle")
-                                                      .attr("class","point")
-                                                    )
-                                  .attr("cy", d => caretakerScale(d['qCaretaker']))
-                                  .attr("cx", d => dbhScale(d['DBH']+1))
-                                  // .attr("r", d => imdbScale(d['imdb_rating']))
-                                  .attr("r", 5)
-                                  .attr("fill", d => legalstatusScale(d['qLegalStatus']) )
-                                  .attr("stroke-width", 1)
-                                  // .attr("label", d => d["common_name"])
-                                  // .attr("legalstatus", d => d["qLegalStatus"])
-                                  .attr("transform","translate("+(-10)+","+(15)+")");
+          let info = d3.select("body").append("div")
+            .attr("class", "tooltip")
+            .style("opacity", 0);
 
+          let circles = scatterArea.selectAll("circle.point")
+            .data(data)
+            .join(enter => enter.append("circle")
+                                .attr("class","point")
+                              )
+            .attr("cy", d => caretakerScale(d['qCaretaker']))
+            .attr("cx", d => dbhScale(d['DBH']+1))
+            .attr("r", 5)
+            .attr("fill", d => legalstatusScale(d['qLegalStatus']) )
+            .attr("stroke-width", 1)
+            .attr("transform","translate("+(-10)+","+(15)+")")
 
-        circles.on("mouseover", function(event, d) {
+        .on("mouseover", function(d) {
           d3.select(this)
             .transition().duration(100)
             .attr("stroke","black")
             .attr("stroke-width", 3)
             .attr("r", 7)
-        });
+          info.transition()
+          .style("opacity", 0.95);
+          info.html("<p><b>"+"Common Name: "+"</b>"+d["common_name"]+"<br/>"
+          +"<b>"+"Latin Name: "+"</b>"+d["latin_name"]+"<br/>"
+          +"<b>"+"DBH: "+"</b>"+d.DBH+"<br/>"
+          +"<b>"+"Owner: "+"</b>"+d.qCaretaker+"<br/>"
+          +"<b>"+"Legal Status: "+"</b>"+d.qLegalStatus+"<br/></p>")
+        })
 
-        circles.on("mouseout", function(event, d) {
-
+        .on("mouseout", function(d) {
           d3.select(this)
             .transition().duration(100)
             .attr("stroke","")
             .attr("stroke-width", 1)
             .attr("r", 5)
-        });
-
-        let popupHeader = d3.select("#PopUpInfo").append("h5");
-        let table = d3.select("#PopUpInfo").append("table");
-
-        function updatePanel(row) {
-
-
-        }
-
-        // Creating an interactive surface for better events
-        let surface = scatter.append("g")
-                             .style("pointer-events","all")
-                             .attr("transform","translate("+margin.left+","+margin.top+")")
-        surface.append("rect")
-                  .attr("width",chartWidth/2)
-                  .attr("height",chartHeight/4)
-                  .attr("x",1000)
-                  .attr("y",0)
-                  .attr("fill","blue");
+            info.transition()
+            .style("opacity", 0);
+        })
 
         }
         loadScatter();
-
-        // function lighten(color) {
-        //
-        //     let hclColor = d3.hcl(color);
-        //     let luma = Math.min(130, hclColor.l + 30);
-        //     return d3.rgb( d3.hcl( hclColor.h, hclColor.c, luma ) );
-        //
-        // }
       </script>
     </div>
   </body>
