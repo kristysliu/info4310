@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>INFO 4310 - Sept-21</title>
+  <meta charset="utf-8" />
+  <!-- <script src="https://d3js.org/d3.v6.min.js"></script>
+  <script src="https://d3js.org/topojson.v2.min.js"></script> -->
+  <script src="https://d3js.org/d3.v5.min.js"></script>
+
+<!--
+  <link rel="stylesheet" type="text/css" href="../css/normalize.css">
+  <link rel="stylesheet" type="text/css" href="../css/skeleton.css">
+  <link rel="stylesheet" type="text/css" href="../css/custom-style.css">
+
+  <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.14.2/styles/default.min.css">
+  <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.14.2/highlight.min.js"></script>
+  <script src="https://d3js.org/d3.v6.min.js"></script>
+  <script src="https://d3js.org/topojson.v2.min.js"></script>
+   -->
+  <style>
+      /* .gridlines line {
+        stroke: #bbb;
+      }
+
+      .gridlines .domain {
+        stroke: none;
+      }
+
+      .border {
+        stroke: #333;
+        fill: none;
+      } */
+  </style>
+
+</head>
+<body>
+  <script id="Scatter">
+  const loadScatter = async function() {
+    const inputData = await d3.csv("../Data/TreeDataFiltered.csv")
+    console.log(inputData)
+    const N = 10000;
+    let data = [];
+    for (let i=0; i<N; i++) {
+        data.push(inputData[i]);
+    }
+  }
+  loadScatter();
+  </script>
+</body>
+</html>
